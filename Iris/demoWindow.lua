@@ -1144,7 +1144,7 @@ return function(Iris: Types.Iris)
                     end
                 end
 
-                local SizeState = Iris.State("Classic Size")
+                local SizeState = Iris.State("Larger Size")
                 if Iris.ComboArray({ "Size" }, { index = SizeState }, { "Classic Size", "Larger Size" }).closed() then
                     if SizeState.value == "Classic Size" then
                         Iris.UpdateGlobalConfig(Iris.TemplateConfig.sizeDefault)

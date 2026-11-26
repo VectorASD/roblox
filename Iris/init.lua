@@ -326,7 +326,6 @@ function Iris.PopConfig()
 end
 
 --[=[
-
     @within Iris
     @prop TemplateConfig { [string]: { [string]: any } }
 
@@ -334,7 +333,7 @@ end
 ]=]
 Iris.TemplateConfig = require(script.config)
 Iris.UpdateGlobalConfig(Iris.TemplateConfig.colorDark) -- use colorDark and sizeDefault themes by default
-Iris.UpdateGlobalConfig(Iris.TemplateConfig.sizeDefault)
+Iris.UpdateGlobalConfig(Iris.TemplateConfig.sizeClear)
 Iris.UpdateGlobalConfig(Iris.TemplateConfig.utilityDefault)
 Internal._globalRefreshRequested = false -- UpdatingGlobalConfig changes this to true, leads to Root being generated twice.
 
@@ -365,11 +364,9 @@ end
     Removes the most recent pushed id from the id stack.
 ]=]
 function Iris.PopId()
-    if #Internal._pushedIds == 0 then
-        return
+    if #Internal._pushedIds ~= 0 then
+        table.remove(Internal._pushedIds)
     end
-
-    table.remove(Internal._pushedIds)
 end
 
 --[=[
