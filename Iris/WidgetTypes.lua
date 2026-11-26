@@ -240,7 +240,7 @@ export type Text = Widget & {
         Wrapped: boolean?,
         Color: Color3?,
         RichText: boolean?,
-        -- TODO: ReadOnly: boolean?,
+        Copyable: boolean?,
     },
 } & Hovered
 

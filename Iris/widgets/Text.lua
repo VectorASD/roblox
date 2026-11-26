@@ -10,14 +10,25 @@ return function(Iris: Types.Internal, widgets: Types.WidgetUtility)
             ["Wrapped"] = 2,
             ["Color"] = 3,
             ["RichText"] = 4,
+            ["Copyable"] = 5,
         },
         Events = {
             ["hovered"] = widgets.EVENTS.hover(function(thisWidget: Types.Widget)
                 return thisWidget.Instance
             end),
         },
-        Generate = function(_thisWidget: Types.Text)
-            local Text = Instance.new("TextLabel")
+        Generate = function(thisWidget: Types.Text)
+            local Text: Instance
+            if thisWidget.arguments.Copyable then
+                local Box = Instance.new("TextBox")
+                Box.TextEditable     = false  -- запрет ввода
+                Box.ClearTextOnFocus = false  -- текст не исчезает при клике
+                Box.TextTruncate     = Enum.TextTruncate.None  -- как у TextLabel
+                Text = Box
+            else
+                Text = Instance.new("TextLabel")
+            end
+
             Text.Name = "Iris_Text"
             Text.AutomaticSize = Enum.AutomaticSize.XY
             Text.Size = UDim2.fromOffset(0, 0)

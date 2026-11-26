@@ -73,6 +73,7 @@ export type Arguments = {
     Wrapped: boolean,
     Color: Color3,
     RichText: boolean,
+    Copyable: boolean,
 
     Increment: InputDataType,
     Min: InputDataType,
