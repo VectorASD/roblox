@@ -3,30 +3,30 @@ local Types = require(script.Parent.Parent.Types)
 -- Tables need an overhaul.
 
 --[[
-	Iris.Table(
-		{
-			NumColumns,
-			Header,
-			RowBackground,
-			OuterBorders,
-			InnerBorders
-		}
-	)
+    Iris.Table(
+        {
+            NumColumns,
+            Header,
+            RowBackground,
+            OuterBorders,
+            InnerBorders
+        }
+    )
 
-	Config = {
-		CellPadding: Vector2,
-		CellSize: UDim2,
-	}
+    Config = {
+        CellPadding: Vector2,
+        CellSize: UDim2,
+    }
 
-	Iris.NextColumn()
-	Iris.NextRow()
-	Iris.SetColumnIndex(index: number)
-	Iris.SetRowIndex(index: number)
+    Iris.NextColumn()
+    Iris.NextRow()
+    Iris.SetColumnIndex(index: number)
+    Iris.SetRowIndex(index: number)
 
-	Iris.NextHeaderColumn()
-	Iris.SetHeaderColumnIndex(index: number)
+    Iris.NextHeaderColumn()
+    Iris.SetHeaderColumnIndex(index: number)
 
-	Iris.SetColumnWidth(index: number, width: number | UDim)
+    Iris.SetColumnWidth(index: number, width: number | UDim)
 ]]
 
 return function(Iris: Types.Internal, widgets: Types.WidgetUtility)
@@ -151,7 +151,40 @@ return function(Iris: Types.Internal, widgets: Types.WidgetUtility)
         widths:set(widths.value, true)
     end
 
+    -- Нормализует веса колонок так, чтобы сумма была равна 1.
+    -- - fallback на равные доли, если total <= 0
+    -- - возвращает НОВУЮ таблицу, т.е. не мутирует входную
+    local function NormalizeWidths(widths: { number }, numColumns: number): { number }
+        local total = 0
+        for index = 1, numColumns do
+            total += (widths[index] or 0)
+        end
+
+        local normalized = table.create(numColumns)
+        if total <= 0 then
+            local equal = 1 / numColumns
+            for index = 1, numColumns do
+                normalized[index] = equal
+            end
+        else
+            for index = 1, numColumns do
+                normalized[index] = (widths[index] or 0) / total
+            end
+        end
+        return normalized
+    end
+
     local function ColumnMouseDown(thisWidget: Types.Table, index: number)
+        local widths = thisWidget.state.widths
+        local numCols = thisWidget.arguments.NumColumns
+        local total = 0
+        for i = 1, numCols do
+            total += (widths.value[i] or 0)
+        end
+        if math.abs(total - 1) > 1e-4 then
+            widths:set(NormalizeWidths(widths.value, numCols))
+        end
+
         AnyActiveTable = true
         ActiveTable = thisWidget
         ActiveColumn = index
@@ -366,7 +399,7 @@ return function(Iris: Types.Internal, widgets: Types.WidgetUtility)
             widgets.UIListLayout(RowContainer, Enum.FillDirection.Vertical, UDim.new())
 
             RowContainer.Parent = Table
-			thisWidget._rowContainer = RowContainer
+            thisWidget._rowContainer = RowContainer
 
             local BorderContainer = Instance.new("Frame")
             BorderContainer.Name = "BorderContainer"
@@ -552,7 +585,22 @@ return function(Iris: Types.Internal, widgets: Types.WidgetUtility)
                         end
                     end
                 end
+            elseif not Fixed and ActiveTable ~= thisWidget then
+                -- Нормализуем только когда таблица НЕ перетаскивается прямо сейчас.
+                -- Resizable + пропорциональный режим:
+                -- нормализуем пользовательские веса, чтобы сумма была 1.
+                -- Локальная копия: state не мутируем, чтобы не сломать
+                -- внешнее чтение/сравнение и не вызвать ложных пересчётов.
+                local total = 0
+                for index = 1, NumColumns do
+                    total += (ColumnWidths[index] or 0)
+                end
+                -- epsilon: не дёргаем пересчёт, если уже ~1 (дрейф от клампов после драга)
+                if math.abs(total - 1) > 1e-4 then
+                    ColumnWidths = NormalizeWidths(ColumnWidths, NumColumns)
+                end
             end
+            -- Resizable + Fixed → ColumnWidths как есть (пиксели, не нормализуем)
 
             local Position = UDim.new()
             for index = 1, NumColumns do
