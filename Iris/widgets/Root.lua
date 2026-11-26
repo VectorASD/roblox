@@ -133,9 +133,11 @@ return function(Iris: Types.Internal, widgets: Types.WidgetUtility)
                 NumNonWindowChildren -= 1
                 if NumNonWindowChildren == 0 then
                     local Root = thisWidget.Instance :: any
-                    local PseudoWindowScreenGui = Root.PseudoWindowScreenGui :: any
-                    local PseudoWindow: Frame = PseudoWindowScreenGui.PseudoWindow
-                    PseudoWindow.Visible = false
+                    if Root.Parent ~= nil then
+                        local PseudoWindowScreenGui = Root.PseudoWindowScreenGui :: any
+                        local PseudoWindow: Frame = PseudoWindowScreenGui.PseudoWindow
+                        PseudoWindow.Visible = false
+                    end
                 end
             end
         end,
