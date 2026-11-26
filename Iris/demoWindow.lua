@@ -1,13 +1,30 @@
 local Types = require(script.Parent.Types)
 
+local ROBUX_ICON           = "rbxassetid://126489842759232" -- "rbxasset://textures/ui/common/robux.png"
+local ROBUX_3X_ICON        = "rbxassetid://91312679710556"  -- "rbxasset://textures/ui/common/robux@3x.png"
+local DARK_LOADING_TEXTURE = "rbxassetid://108601398576389" -- "rbxasset://textures/loading/darkLoadingTexture.png"
+local HUESATGRADIENT       = "rbxassetid://99735661225632"  -- "rbxasset://textures/TagEditor/huesatgradient.png"
+local FAMFAMFAM            = "rbxassetid://71273611803297"  -- "rbxasset://textures/TagEditor/famfamfam.png"
+local GRID_TEXTURE         = "rbxassetid://114362992902092" -- "rbxasset://textures/grid2.png"
+-- local GRID_TEXTURE      = "rbxassetid://98876315281329"  -- "rbxasset://textures/grid4.png"
+-- local GRID_TEXTURE      = "rbxassetid://73300718109844"  -- "rbxasset://textures/grid16.png"
+local CHAT_BUBBLE          = "rbxassetid://84102251310436"  -- "rbxasset://textures/ui/chatBubble_blue_notify_bkg.png"
+-- local CHAT_BUBBLE       = "rbxassetid://140092219152827" -- "rbxasset://textures/ui/chatBubble_green_notify_bkg.png"
+-- local CHAT_BUBBLE       = "rbxassetid://98319976083840"  -- "rbxasset://textures/ui/chatBubble_red_notify_bkg.png"
+local ADD_TEXTURE          = "rbxassetid://74845377431013"  -- "rbxasset://textures/AvatarCompatibilityPreviewer/add.png"
+
+
+
 return function(Iris: Types.Iris)
-    local showMainWindow = Iris.State(true)
+    local showMainWindow = Iris.State(false)
     local showRecursiveWindow = Iris.State(false)
     local showRuntimeInfo = Iris.State(false)
     local showStyleEditor = Iris.State(false)
     local showWindowlessDemo = Iris.State(false)
     local showMainMenuBarWindow = Iris.State(false)
     local showDebugWindow = Iris.State(false)
+
+	Iris.ShowMainWindow = showMainWindow
 
     local showBackground = Iris.State(false)
     local backgroundColour = Iris.State(Color3.fromRGB(115, 140, 152))
@@ -78,7 +95,7 @@ return function(Iris: Types.Iris)
             do
                 Iris.SeparatorText({ "Basic" })
 
-                local radioButtonState = Iris.State(1)
+                local radioButtonState: Types.State<any> = Iris.State(1)
                 Iris.Button({ "Button" })
                 Iris.SmallButton({ "SmallButton" })
                 Iris.Text({ "Text" })
@@ -114,12 +131,12 @@ return function(Iris: Types.Iris)
             do
                 Iris.SeparatorText({ "Image Controls" })
 
-                local AssetState = Iris.State("rbxasset://textures/ui/common/robux.png")
+				local AssetState = Iris.State(ROBUX_ICON)
                 local SizeState = Iris.State(UDim2.fromOffset(100, 100))
                 local RectState = Iris.State(Rect.new(0, 0, 0, 0))
                 local ScaleTypeState = Iris.State(Enum.ScaleType.Stretch)
                 local PixelatedCheckState = Iris.State(false)
-                local PixelatedState = Iris.ComputedState(PixelatedCheckState, function(check)
+                local PixelatedState = Iris.ComputedState(PixelatedCheckState, function(check: boolean)
                     return check and Enum.ResamplerMode.Pixelated or Enum.ResamplerMode.Default
                 end)
 
@@ -129,11 +146,11 @@ return function(Iris: Types.Iris)
 
                 Iris.Combo({ "Asset" }, { index = AssetState })
                 do
-                    Iris.Selectable({ "Robux Small", "rbxasset://textures/ui/common/robux.png" }, { index = AssetState })
-                    Iris.Selectable({ "Robux Large", "rbxasset://textures//ui/common/robux@3x.png" }, { index = AssetState })
-                    Iris.Selectable({ "Loading Texture", "rbxasset://textures//loading/darkLoadingTexture.png" }, { index = AssetState })
-                    Iris.Selectable({ "Hue-Saturation Gradient", "rbxasset://textures//TagEditor/huesatgradient.png" }, { index = AssetState })
-                    Iris.Selectable({ "famfamfam.png (WHY?)", "rbxasset://textures//TagEditor/famfamfam.png" }, { index = AssetState })
+					Iris.Selectable({ "Robux Small", ROBUX_ICON }, { index = AssetState })
+					Iris.Selectable({ "Robux Large", ROBUX_3X_ICON }, { index = AssetState })
+					Iris.Selectable({ "Loading Texture", DARK_LOADING_TEXTURE }, { index = AssetState })
+					Iris.Selectable({ "Hue-Saturation Gradient", HUESATGRADIENT }, { index = AssetState })
+					Iris.Selectable({ "famfamfam.png (WHY?)", FAMFAMFAM }, { index = AssetState })
                 end
                 Iris.End()
 
@@ -165,7 +182,7 @@ return function(Iris: Types.Iris)
                     ImageColor = ImageColorState:get(),
                     ImageTransparency = ImageTransparencyState:get(),
                 })
-                Iris.Image({ "rbxasset://textures/grid2.png", SizeState:get(), nil, Enum.ScaleType.Tile, PixelatedState:get(), TileState:get() })
+                Iris.Image({ GRID_TEXTURE, SizeState:get(), nil, Enum.ScaleType.Tile, PixelatedState:get(), TileState:get() })
                 Iris.PopConfig()
 
                 Iris.SeparatorText({ "Slice" })
@@ -176,7 +193,7 @@ return function(Iris: Types.Iris)
                     ImageColor = ImageColorState:get(),
                     ImageTransparency = ImageTransparencyState:get(),
                 })
-                Iris.Image({ "rbxasset://textures/ui/chatBubble_blue_notify_bkg.png", SizeState:get(), nil, Enum.ScaleType.Slice, PixelatedState:get(), nil, Rect.new(12, 12, 56, 56), 1 }, SliceScaleState:get())
+				Iris.Image({ CHAT_BUBBLE, SizeState:get(), nil, Enum.ScaleType.Slice, PixelatedState:get(), nil, Rect.new(12, 12, 56, 56), 1 }, SliceScaleState:get())
                 Iris.PopConfig()
 
                 Iris.SeparatorText({ "Image Button" })
@@ -188,7 +205,7 @@ return function(Iris: Types.Iris)
                         ImageColor = ImageColorState:get(),
                         ImageTransparency = ImageTransparencyState:get(),
                     })
-                    if Iris.ImageButton({ "rbxasset://textures/AvatarCompatibilityPreviewer/add.png", UDim2.fromOffset(20, 20) }).clicked() then
+					if Iris.ImageButton({ ADD_TEXTURE, UDim2.fromOffset(20, 20) }).clicked() then
                         count:set(count.value + 1)
                     end
                     Iris.PopConfig()
@@ -649,8 +666,8 @@ return function(Iris: Types.Iris)
                         if Animated.state.isChecked.value then
                             TimeState:set(TimeState.value + Iris.Internal._deltaTime)
                         end
-                        local offset = math.floor(TimeState.value * 30) - 1
-                        local func = FunctionState.value
+                        local offset: number = math.floor(TimeState.value * 30) - 1
+                        local func: string = FunctionState.value
                         table.clear(ValueState.value)
                         for i = 1, SampleState.value do
                             if func == "Sin" then
@@ -1095,7 +1112,7 @@ return function(Iris: Types.Iris)
                         local FontStyle = Iris.ComboEnum({ "Font Style" }, { index = Iris.WeakState(Iris._config.TextFont.Style) }, Enum.FontStyle)
 
                         Iris.SeparatorText({ "Fonts" })
-                        for name, font in fonts do
+                        for name: string, font: Font in fonts do
                             font = Font.new(font.Family, FontWeight.state.index.value, FontStyle.state.index.value)
                             Iris.SameLine()
                             do
@@ -1819,23 +1836,23 @@ return function(Iris: Types.Iris)
 
     -- main demo window
     return function()
-        local NoTitleBar = Iris.State(false)
-        local NoBackground = Iris.State(false)
-        local NoCollapse = Iris.State(false)
-        local NoClose = Iris.State(true)
-        local NoMove = Iris.State(false)
-        local NoScrollbar = Iris.State(false)
-        local NoResize = Iris.State(false)
-        local NoNav = Iris.State(false)
-        local NoMenu = Iris.State(false)
+        local NoTitleBar: Types.State<boolean> = Iris.State(false)
+        local NoBackground: Types.State<boolean> = Iris.State(false)
+        local NoCollapse: Types.State<boolean> = Iris.State(false)
+        local NoClose: Types.State<boolean> = Iris.State(false)
+        local NoMove: Types.State<boolean> = Iris.State(false)
+        local NoScrollbar: Types.State<boolean> = Iris.State(false)
+        local NoResize: Types.State<boolean> = Iris.State(false)
+        local NoNav: Types.State<boolean> = Iris.State(false)
+        local NoMenu: Types.State<boolean> = Iris.State(false)
 
         if showMainWindow.value == false then
-            Iris.Checkbox({ "Open main window" }, { isChecked = showMainWindow })
-            return
-        end
+		    -- Iris.Checkbox({ "Open main window" }, { isChecked = showMainWindow })
+		    return
+		end
 
         debug.profilebegin("Iris/Demo/Window")
-        local window = Iris.Window({
+        local window: Types.Window = Iris.Window({
             [Iris.Args.Window.Title] = "Iris Demo Window",
             [Iris.Args.Window.NoTitleBar] = NoTitleBar.value,
             [Iris.Args.Window.NoBackground] = NoBackground.value,
