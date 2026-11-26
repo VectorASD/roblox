@@ -18,50 +18,59 @@ return function(Iris: Types.Internal, widgets: Types.WidgetUtility)
             end),
         },
         Generate = function(thisWidget: Types.Text)
-            local Text: Instance
-            if thisWidget.arguments.Copyable then
-                local Box = Instance.new("TextBox")
-                Box.TextEditable     = false  -- запрет ввода
-                Box.ClearTextOnFocus = false  -- текст не исчезает при клике
-                Box.TextTruncate     = Enum.TextTruncate.None  -- как у TextLabel
-                Text = Box
-            else
-                Text = Instance.new("TextLabel")
-            end
+            local Box = Instance.new("TextBox")
+            Box.Name = "Iris_Text"
+            Box.TextEditable     = false  -- запрет ввода
+            Box.ClearTextOnFocus = false  -- текст не исчезает при клике
+            Box.TextTruncate     = Enum.TextTruncate.None  -- как у TextLabel
+            Box.AutomaticSize    = Enum.AutomaticSize.XY
+            Box.Size             = UDim2.fromOffset(0, 0)
+            Box.BackgroundTransparency = 1
+            Box.BorderSizePixel = 0
 
-            Text.Name = "Iris_Text"
-            Text.AutomaticSize = Enum.AutomaticSize.XY
-            Text.Size = UDim2.fromOffset(0, 0)
-            Text.BackgroundTransparency = 1
-            Text.BorderSizePixel = 0
+            widgets.applyTextStyle(Box)
+            widgets.UIPadding(Box, Vector2.new(0, 2))
 
-            widgets.applyTextStyle(Text)
-            widgets.UIPadding(Text, Vector2.new(0, 2))
-
-            return Text
+            return Box
         end,
         Update = function(thisWidget: Types.Text)
-            local Text = thisWidget.Instance :: TextLabel
-            if thisWidget.arguments.Text == nil then
+            local Box = thisWidget.Instance :: TextBox
+            local args = thisWidget.arguments
+
+            if args.Text == nil then
                 error("Text argument is required for Iris.Text().", 5)
             end
-            if thisWidget.arguments.Wrapped ~= nil then
-                Text.TextWrapped = thisWidget.arguments.Wrapped
-            else
-                Text.TextWrapped = Iris._config.TextWrapped
-            end
-            if thisWidget.arguments.Color then
-                Text.TextColor3 = thisWidget.arguments.Color
-            else
-                Text.TextColor3 = Iris._config.TextColor
-            end
-            if thisWidget.arguments.RichText ~= nil then
-                Text.RichText = thisWidget.arguments.RichText
-            else
-                Text.RichText = Iris._config.RichText
+
+            -- Copyable: toggle focusability. TextEditable всегда false,
+            -- чтобы даже при фокусе нельзя было изменить текст
+            local copyable = args.Copyable == true
+            Box.TextEditable = false
+            Box.Active       = copyable
+            Box.Selectable   = copyable
+
+            -- Если Copyable только что переключили false → true → false,
+            -- а фокус уже стоял - принудительно снимаем
+            if not copyable and Box:IsFocused() then
+                Box:ReleaseFocus()
             end
 
-            Text.Text = thisWidget.arguments.Text
+            if args.Wrapped ~= nil then
+                Box.TextWrapped = args.Wrapped
+            else
+                Box.TextWrapped = Iris._config.TextWrapped
+            end
+            if args.Color then
+                Box.TextColor3 = args.Color
+            else
+                Box.TextColor3 = Iris._config.TextColor
+            end
+            if args.RichText ~= nil then
+                Box.RichText = args.RichText
+            else
+                Box.RichText = Iris._config.RichText
+            end
+
+            Box.Text = args.Text
         end,
         Discard = function(thisWidget: Types.Text)
             thisWidget.Instance:Destroy()
