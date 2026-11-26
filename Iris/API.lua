@@ -2,8 +2,8 @@ local Types = require(script.Parent.Types)
 
 return function(Iris: Types.Iris)
     -- basic wrapper for nearly every widget, saves space.
-    local function wrapper(name)
-        return function(arguments, states)
+    local function wrapper(name: string)
+        return function(arguments: Types.WidgetArguments?, states: Types.WidgetStates?): Types.Widget
             return Iris.Internal._Insert(name, arguments, states)
         end
     end
@@ -660,7 +660,7 @@ return function(Iris: Types.Iris)
         @class Image
         Image Widget API
 
-        Provides two widgets for Images and ImageButtons, which provide the same control as a an ImageLabel instance.
+        Provides three widgets for Images, ImageButtons and AssetTiles, which provide the same control as a an ImageLabel instance.
     ]=]
 
     --[=[
@@ -722,6 +722,64 @@ return function(Iris: Types.Iris)
         ```
     ]=]
     Iris.ImageButton = wrapper("ImageButton")
+
+	--[=[
+	    @within Image
+	    @prop AssetTile Iris.AssetTile
+	    @tag Widget
+
+	    A specialized ImageButton for displaying asset thumbnails by their numeric asset ID.
+	    Pass the asset ID (e.g. 77199330880416) as the Image argument — the widget converts it
+	    to an rbxthumb://type=Asset URL automatically, so you don't need to know the thumbnail
+	    endpoint or request specific sizes.
+
+	    Useful for building catalogue-style grids: place multiple AssetTile widgets inside an
+	    Iris.Table or Iris.SameLine, and each becomes a clickable square thumbnail.
+	    All standard button events are supported, plus hovered for future overlay actions.
+
+	    Size defaults to a 100×100 square if omitted. Rect, ScaleType, TileSize, SliceCenter,
+	    SliceScale and ResampleMode are inherited from the abstract image type for API
+	    compatibility, but are typically unused for thumbnails (thumbnail is always Fit-scaled
+	    inside the square).
+
+        ```lua
+        hasChildren = false
+        hasState = false
+        Arguments = {
+            Image: string, -- the texture asset id
+            Size: UDim2,
+            Rect: Rect? = Rect.new(), -- Rect structure which is used to determine the offset or size. An empty, zeroed rect is equivalent to nil
+            ScaleType: Enum.ScaleType? = Enum.ScaleType.Stretch, -- used to determine whether the TileSize, SliceCenter and SliceScale arguments are used
+            ResampleMode: Enum.ResampleMode? = Enum.ResampleMode.Default,
+            TileSize: UDim2? = UDim2.fromScale(1, 1), -- only used if the ScaleType is set to Tile
+            SliceCenter: Rect? = Rect.new(), -- only used if the ScaleType is set to Slice
+            SliceScale: number? = 1 -- only used if the ScaleType is set to Slice
+        }
+        Events = {
+            clicked: () -> boolean,
+            rightClicked: () -> boolean,
+            doubleClicked: () -> boolean,
+            ctrlClicked: () -> boolean, -- when the control key is down and clicked.
+            hovered: () -> boolean
+        }
+        ```
+
+	    Usage example:
+        ```lua
+	        Iris.Table({ 5 })
+	        for _, accessoryId in ipairs(myAccessoryIds) do
+	            local tile = Iris.AssetTile({
+	                [Iris.Args.Image.Image] = accessoryId,
+	                [Iris.Args.Image.Size] = UDim2.fromOffset(80, 80),
+	            })
+	            if tile.clicked() then
+	                print("clicked", accessoryId)
+	            end
+	        end
+	        Iris.End()
+        ```
+	]=]
+	Iris.AssetTile = wrapper("AssetTile")
 
     --[[
         ---------------------------------

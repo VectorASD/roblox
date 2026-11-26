@@ -240,6 +240,7 @@ export type Text = Widget & {
         Wrapped: boolean?,
         Color: Color3?,
         RichText: boolean?,
+        -- TODO: ReadOnly: boolean?,
     },
 } & Hovered
 
@@ -255,6 +256,7 @@ export type Button = Widget & {
     arguments: {
         Text: string?,
         Size: UDim2?,
+        -- TODO: isEnabled: boolean?,
     },
 } & Clicked & RightClicked & DoubleClicked & CtrlClicked & Hovered
 
@@ -299,6 +301,7 @@ export type Image = Widget & {
 -- ooops, may have overriden a Roblox type, and then got a weird type message
 -- let's just hope I don't have to use a Roblox ImageButton type anywhere by name in this file
 export type ImageButton = Image & Clicked & RightClicked & DoubleClicked & CtrlClicked
+export type AssetTile   = Image & Clicked & RightClicked & DoubleClicked & CtrlClicked
 
 -- Tree
 
