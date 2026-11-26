@@ -28,12 +28,14 @@ def exit(*a, **kw):
 
 
 
-def String(content) -> bytes|str: # 0x01
+def String(content, bin=True) -> bytes|str: # 0x01
     L = unpack("<I", content.read(4))[0]
     str: bytes = content.read(L)
     if len(str) < L:
         exit("Неудачная попытка считывания строки длины %s: %r" % (L, str))
-    return str if any(i < 32 for i in str) else str.decode("utf-8")
+    if bin:
+        return str
+    return str.decode("utf-8")
 
 def Bool(content, count): # 0x02
     arr = content.read(count)
@@ -192,9 +194,9 @@ def OptionalCoordinateFrame(content, count): # 0x1e
 def Font(content, count): # 0x20
     fonts = []
     for i in range(count):
-        family = String(content)
+        family = String(content, bin=False)
         weight, style = unpack("<HB", content.read(3))
-        cachedFaceId = String(content)
+        cachedFaceId = String(content, bin=False)
         fonts.append((family, weight, style, cachedFaceId))
     return fonts
 
@@ -267,7 +269,7 @@ class Instance:
         assert "Name" in self.data
         prop_kind, name = self.data.pop("Name")
         assert prop_kind == 1, "prop_kind is not String"
-        self._name = name
+        self._name = name.decode("utf-8")
 
     def print(self, lvl = "", check = False):
         data = {k: v for k, (t, v) in self.data.items() if dbgType is None or t == dbgType}
@@ -288,6 +290,7 @@ class Instance:
         while node is not None:
             appendleft(node._name)
             node = node._parent
+        chain.popleft()
         return sep.join(chain)
 
 
@@ -296,7 +299,7 @@ def META(content):
     entries = unpack("<I", content.read(4))[0]
     meta = {}
     for i in range(entries):
-        key, value = String(content), String(content)
+        key, value = String(content, bin=False), String(content, bin=False)
         try:
             conflict = meta[key]
             exit("Конфликтный ключ %r: %r <-> %r" % (key, conflict, value))
@@ -311,7 +314,7 @@ def SSTR(content): # Shared STRings
     SStrings = []
     if version != 0: exit("Странная версия SSTR-чанка: %s" % version)
     for i in range(count):
-        hash, str = content.read(16), String(content)[:256] # заглушка по длине строки
+        hash, str = content.read(16), String(content, bin=False)[:256] # заглушка по длине строки
         print("%s %r" % (hash.hex(), str))
         SStrings.append(str)
     what = content.read()
@@ -322,7 +325,7 @@ def SSTR(content): # Shared STRings
 def INST(content, instances: dict[int, Instance]):
     classID = unpack("<I", content.read(4))[0]
 
-    className = String(content)
+    className = String(content, bin=False)
     assert isinstance(className, str)
 
     objectFormat, count = unpack("<BI", content.read(5))
@@ -355,7 +358,7 @@ def INST(content, instances: dict[int, Instance]):
 typesAll = set()
 def PROP(content, instances: dict[int, Instance]):
     classID = unpack("<I", content.read(4))[0]
-    propertyName = String(content)
+    propertyName = String(content, bin=False)
     typeID = content.read(1)[0]
     typesAll.add(typeID)
 
@@ -376,9 +379,12 @@ def PROP(content, instances: dict[int, Instance]):
         values = ()
     else: values = Type(content, count)
 
-    values2 = [] # только для печати
+    values2 = []  # только для печати
+    isSource = propertyName == "Source" and className in ("Script", "LocalScript", "ModuleScript")
+
     for id, value in zip(referents, values):
-        values2.append(value)
+        values2.append("<source>" if isSource else value)
+
         try: node = instances[id]
         except KeyError: exit("Нет экземпляра с таким id: %s" % id)
         try:
@@ -440,8 +446,9 @@ def Chunk(file, instances: dict[int, Instance]):
 
     name, compressL, uncompressL, reserved = unpack("<4sII4s", file.read(16))
     while name[-1] == 0: name = name[:-1]
-    print("Чанк %r длины %s -> %s" % (name, compressL, uncompressL))
-    if reserved != b"\0" * 4: exit("Странный reserved чанка: %s" % reserved.hex())
+    print("- Чанк %r длины %s -> %s" % (name, compressL, uncompressL))
+    if reserved != b"\0" * 4:
+        exit("Странный reserved чанка: %s" % reserved.hex())
 
     compressed = compressL > 0
     dataL = compressL if compressed else uncompressL
@@ -450,6 +457,7 @@ def Chunk(file, instances: dict[int, Instance]):
     data = lz4.block.decompress(chunk, uncompressL) if compressed else chunk
     # check = lz4.block.compress(data, store_size=False)
     content = BytesIO(data)
+
     if name == b"META":
         meta = META(content)
         print(meta)
@@ -472,7 +480,7 @@ def Chunk(file, instances: dict[int, Instance]):
 
 def rbxmReader(name):
     root = Instance(-1, -1, "$root$", True, None)
-    root.data["Name"] = 1, "root"
+    root.data["Name"] = 1, b"root"
     instances = {-1: root}
 
     with open(name, "rb") as file:
@@ -481,17 +489,25 @@ def rbxmReader(name):
         sign = file.read(6).hex()
         if sign != "89ff0d0a1a0a":
             exit("Неверная подпись: %s" % sign)
+
         version, classes, _instances, reserved = unpack("<Hii8s", file.read(18))
+
         print("Класов:", classes)
         print("Экземпляров:", _instances)
         if version != 0:
             exit("Странная версия заголовка: %s" % version)
         if reserved != b"\0" * 8:
             exit("Странный reserved заголовка: %s" % reserved.hex())
+
+        print()
         while True:
             end = Chunk(file, instances)
             if end:
                 break
+
+    print()
+    print("~" * 77)
+    print()
 
     for instance in instances.values():
         instance.apply()
@@ -506,7 +522,6 @@ if __name__ == "__main__":
     # insts = rbxmReader("rbxm/SolarSystem.rbxm")
     # insts = rbxmReader("rbxm/CageDeformerPlugin")
 
-    print("=" * 77)
     insts[-1].print()
     # print(*map(hex, sorted(typesAll)))
     print("OK!")
