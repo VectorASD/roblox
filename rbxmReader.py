@@ -274,7 +274,7 @@ def INST(content):
     return classID, className, objectFormat, referents, markers
 
 typesAll = set()
-def PROP(content):
+def PROP(content, instances: dict[int, dict[str]]):
     classID = unpack("<I", content.read(4))[0]
     propertyName = String(content)
     typeID = content.read(1)[0]
@@ -320,7 +320,7 @@ def PROP(content):
         print(count, len(what), what.hex(), tuple(values2))
         print()
 
-def PRNT(content): # parents
+def PRNT(content, instances: dict[int, dict[str]]): # parents
     version, count = unpack("<BI", content.read(5))
     if version != 0: exit("Странная версия PRNT-чанка: %s" % version)
     childs = Referent(content, count)
@@ -346,10 +346,8 @@ def PRNT(content): # parents
 
 SStrings = None
 classes = {}
-root = {"_id": -1, "_parent": "x", "_childs": [], "_class": "root", "Name": (1, "root")}
-instances = {-1: root}
 
-def printTree(node = root, lvl = "", check = False):
+def printTree(node, lvl = "", check = False):
     id, parent, childs, className, name = node["_id"], node["_parent"], node["_childs"], node["_class"], node["Name"][1]
     data = {k: v for k, v in node.items() if k not in {"_id", "_parent", "_childs", "_class", "Name"}}
     data = {k: v for k, (t, v) in data.items() if dbgType is None or t == dbgType}
@@ -361,7 +359,7 @@ def printTree(node = root, lvl = "", check = False):
     lvl += "| "
     for child in childs: printTree(child, lvl)
 
-def Chunk(file):
+def Chunk(file, instances: dict[int, dict[str]]):
     global SStrings
 
     name, compressL, uncompressL, reserved = unpack("<4sII4s", file.read(16))
@@ -398,38 +396,48 @@ def Chunk(file):
                 exit("Конфликтный referent %r: %r <-> %r" % (referent, conflict, data))
             except: instances[referent] = data
     elif name == b"PROP":
-        PROP(content)
+        PROP(content, instances)
         #exit("OK")
     elif name == b"PRNT":
-        PRNT(content)
+        PRNT(content, instances)
     elif name == b"END":
         if data != b'</roblox>': print("Странное окончание: %r" % data)
         return True
     else: exit("UNKNOWN CHUNK (%r): %r" % (name, data))
 
 def rbxmReader(name):
+    root = {"_id": -1, "_parent": "x", "_childs": [], "_class": "root", "Name": (1, "root")}
+    instances = {-1: root}
+
     with open(name, "rb") as file:
-        if file.read(8) != b'<roblox!': exit("Это не rbxm!")
+        if file.read(8) != b'<roblox!':
+            exit("Это не rbxm!")
         sign = file.read(6).hex()
-        if sign != "89ff0d0a1a0a": exit("Неверная подпись: %s" % sign)
-        version, classes, instances, reserved = unpack("<Hii8s", file.read(18))
+        if sign != "89ff0d0a1a0a":
+            exit("Неверная подпись: %s" % sign)
+        version, classes, _instances, reserved = unpack("<Hii8s", file.read(18))
         print("Класов:", classes)
-        print("Экземпляров:", instances)
-        if version != 0: exit("Странная версия заголовка: %s" % version)
-        if reserved != b"\0" * 8: exit("Странный reserved заголовка: %s" % reserved.hex())
+        print("Экземпляров:", _instances)
+        if version != 0:
+            exit("Странная версия заголовка: %s" % version)
+        if reserved != b"\0" * 8:
+            exit("Странный reserved заголовка: %s" % reserved.hex())
         while True:
-            end = Chunk(file)
-            if end: break
+            end = Chunk(file, instances)
+            if end:
+                break
+
+    return instances
 
 
 if __name__ == "__main__":
-    # rbxmReader("rbxm/avatar3.rbxm")
-    # rbxmReader("rbxm/gui.rbxm")
-    # rbxmReader("rbxm/headAsset.rbxm")
-    # rbxmReader("rbxm/SolarSystem.rbxm")
-    rbxmReader("rbxm/CageDeformerPlugin")
+    # insts = rbxmReader("rbxm/avatar3.rbxm")
+    # insts = rbxmReader("rbxm/gui.rbxm")
+    # insts = rbxmReader("rbxm/headAsset.rbxm")
+    # insts = rbxmReader("rbxm/SolarSystem.rbxm")
+    insts = rbxmReader("rbxm/CageDeformerPlugin")
 
     print("=" * 77)
-    printTree()
+    printTree(insts[-1])
     # print(*map(hex, sorted(typesAll)))
     print("OK!")
