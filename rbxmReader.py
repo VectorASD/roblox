@@ -1,6 +1,7 @@
 from struct import unpack
 from io import BytesIO
 from math import sin, cos
+from collections import deque
 
 import lz4.block  # pip install lz4
 
@@ -27,16 +28,18 @@ def exit(*a, **kw):
 
 
 
-def String(content): # 0x01
+def String(content) -> bytes|str: # 0x01
     L = unpack("<I", content.read(4))[0]
-    str = content.read(L)
-    if len(str) < L: exit("Неудачная попытка считывания строки длины %s: %r" % (L, str))
+    str: bytes = content.read(L)
+    if len(str) < L:
+        exit("Неудачная попытка считывания строки длины %s: %r" % (L, str))
     return str if any(i < 32 for i in str) else str.decode("utf-8")
 
 def Bool(content, count): # 0x02
     arr = content.read(count)
     for byte in arr:
-        if byte not in range(2): exit("Недопустимое Bool-значение: %s" % byte)
+        if byte not in range(2):
+            exit("Недопустимое Bool-значение: %s" % byte)
     return map(bool, arr)
 
 def Int32(content, count): # 0x03
@@ -127,11 +130,16 @@ def CFrame(content, count): # 0x10
     for i in range(count):
         ID = content.read(1)[0]
         if ID:
-            try: rotator = CFrameRotators[ID]
-            except KeyError: rotator = None
-            if rotator is None: exit("Недопустимое значение вращателя CFrame: %s" % ID)
+            try:
+                rotator = CFrameRotators[ID]
+            except KeyError:
+                rotator = None
+            if rotator is None:
+                exit("Недопустимое значение вращателя CFrame: %s" % ID)
+
             rotators.append(rotator)
-        else: rotators.append(unpack("<9f", content.read(36)))
+        else:
+            rotators.append(unpack("<9f", content.read(36)))
     return (vec + rot for rot, vec in zip(rotators, Vector3(content, count)))
 
 def Enum(content, count): # 0x12
@@ -140,8 +148,9 @@ def Enum(content, count): # 0x12
 
 def Referent(content, count): # 0x13
     data = b"".join(map(bytes, zip(*(content.read(count) for i in range(4)))))
-    referents = [(x >> 1) ^ -(x & 1) for x in unpack(">%sI" % count, data)]
-    for i in range(1, count): referents[i] += referents[i - 1]
+    referents: list[int] = [(x >> 1) ^ -(x & 1) for x in unpack(">%sI" % count, data)]
+    for i in range(1, count):
+        referents[i] += referents[i - 1]
     return referents
 
 def Rect(content, count): # 0x18 не до конца протестировано
@@ -172,9 +181,11 @@ def SharedString(content, count): # 0x1c
 def OptionalCoordinateFrame(content, count): # 0x1e
     # content = BytesIO(bytes.fromhex("10 0a 02 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 7f 00 00 00 00 00 00 00 02 01 00".replace(" ", "")))
     # count = 2
-    if content.read(1)[0] != 0x10: exit("Ожидался CFrame внутри OptionalCoordinateFrame")
+    if content.read(1)[0] != 0x10:
+        exit("Ожидался CFrame внутри OptionalCoordinateFrame")
     cframes = CFrame(content, count)
-    if content.read(1)[0] != 0x02: exit("Ожидался Bool внутри OptionalCoordinateFrame")
+    if content.read(1)[0] != 0x02:
+        exit("Ожидался Bool внутри OptionalCoordinateFrame")
     have_a_value = Bool(content, count)
     return zip(have_a_value, cframes)
 
@@ -190,7 +201,7 @@ def Font(content, count): # 0x20
 def Capabilities(content, count): # 0x21
     print(content.read().hex())
     return "?" * count
-    exit()
+    # exit()
 
 #dbgType = 0x13
 dbgType = None
@@ -235,6 +246,50 @@ PROP_types = {
 
 
 
+class Instance:
+    def __init__(self, id: int, ref: int, className: str, objectFormat: bool, markers: tuple[int]|None):
+        self._id      = id
+        self._ref     = ref
+        self._class   = className
+        self._format  = objectFormat
+        self._markers = markers
+
+        self._parent: Instance|None  = None
+        self._childs: list[Instance] = []
+        self._name: str              = '<awaiting apply>'
+
+        self.data = {}
+
+    def __repr__(self):
+        return f"<Instance#{self._ref} {self.path()} (class: {self._class})>"
+
+    def apply(self):
+        assert "Name" in self.data
+        prop_kind, name = self.data.pop("Name")
+        assert prop_kind == 1, "prop_kind is not String"
+        self._name = name
+
+    def print(self, lvl = "", check = False):
+        data = {k: v for k, (t, v) in self.data.items() if dbgType is None or t == dbgType}
+
+        checked = dbgType is None or any(child.print("", True) for child in self._childs)
+        if check:
+            return bool(data) or checked
+
+        if data or checked:
+            print(f"{lvl}{self._id} {self._name} (class: {self._class})   {data}")
+        lvl += "| "
+        for child in self._childs:
+            child.print(lvl)
+
+    def path(self, sep='/'):
+        chain = deque(); appendleft = chain.appendleft
+        node = self
+        while node is not None:
+            appendleft(node._name)
+            node = node._parent
+        return sep.join(chain)
+
 
 
 def META(content):
@@ -247,7 +302,8 @@ def META(content):
             exit("Конфликтный ключ %r: %r <-> %r" % (key, conflict, value))
         except KeyError: meta[key] = value
     what = content.read()
-    if what: exit("Не до конца считанный META-чанк: %s" % what)
+    if what:
+        exit("Не до конца считанный META-чанк: %s" % what)
     return meta
 
 def SSTR(content): # Shared STRings
@@ -259,22 +315,45 @@ def SSTR(content): # Shared STRings
         print("%s %r" % (hash.hex(), str))
         SStrings.append(str)
     what = content.read()
-    if what: exit("Не до конца считанный SSTR-чанк: %s" % what)
+    if what:
+        exit("Не до конца считанный SSTR-чанк: %s" % what)
     return SStrings
 
-def INST(content):
+def INST(content, instances: dict[int, Instance]):
     classID = unpack("<I", content.read(4))[0]
+
     className = String(content)
+    assert isinstance(className, str)
+
     objectFormat, count = unpack("<BI", content.read(5))
-    if objectFormat not in range(2): exit("Неизвестный формат INST-чанка: %s" % objectFormat)
+    if objectFormat not in range(2):
+        exit("Неизвестный формат INST-чанка: %s" % objectFormat)
+    objectFormat = objectFormat != 0
+
     referents = Referent(content, count)
-    markers = unpack("<%sB" % count, content.read(count)) if objectFormat else None
+    markers: tuple[int]|None = unpack("<%sB" % count, content.read(count)) if objectFormat else None
     what = content.read()
-    if what: exit("Не до конца считанный INST-чанк: %s" % what)
-    return classID, className, objectFormat, referents, markers
+    if what:
+        exit("Не до конца считанный INST-чанк: %s" % what)
+
+    print("INST:", classID, className, "service" if objectFormat else "regular", referents, markers)
+
+    inst = className, objectFormat, referents, markers
+    try:
+        conflict = classes[classID]
+        exit("Конфликтный classID %r: %r <-> %r" % (classID, conflict, inst))
+    except KeyError: classes[classID] = inst
+
+    for referent in referents:
+        instance = Instance(classID, referent, className, objectFormat, markers)
+        try:
+            conflict = instances[referent]
+            exit("Конфликтный referent %r: %r <-> %r" % (referent, conflict, instance))
+        except:
+            instances[referent] = instance
 
 typesAll = set()
-def PROP(content, instances: dict[int, dict[str]]):
+def PROP(content, instances: dict[int, Instance]):
     classID = unpack("<I", content.read(4))[0]
     propertyName = String(content)
     typeID = content.read(1)[0]
@@ -303,11 +382,11 @@ def PROP(content, instances: dict[int, dict[str]]):
         try: node = instances[id]
         except KeyError: exit("Нет экземпляра с таким id: %s" % id)
         try:
-            conflict = node[propertyName]
+            conflict = node.data[propertyName]
             exit("Повторяющийся параметр %r: %r <-> %r" % (propertyName, conflict, value))
         except KeyError:
             #if dbgType is None or typeID == dbgType or propertyName == "Name":
-            node[propertyName] = typeID, value
+            node.data[propertyName] = typeID, value
 
     if dbgType is None:
         if Type is not None:
@@ -320,24 +399,33 @@ def PROP(content, instances: dict[int, dict[str]]):
         print(count, len(what), what.hex(), tuple(values2))
         print()
 
-def PRNT(content, instances: dict[int, dict[str]]): # parents
+def PRNT(content, instances: dict[int, Instance]): # parents
     version, count = unpack("<BI", content.read(5))
-    if version != 0: exit("Странная версия PRNT-чанка: %s" % version)
+    if version != 0:
+        exit("Странная версия PRNT-чанка: %s" % version)
+
     childs = Referent(content, count)
     parents = Referent(content, count)
     for child, parent in zip(childs, parents):
         try: L = instances[child]
-        except KeyError: exit("Нет потомка с таким id: %s" % child)
+        except KeyError:
+            exit("Нет потомка с таким id: %s" % child)
         try: R = instances[parent]
-        except KeyError: exit("Нет родителя с таким id: %s" % parent)
-        if L["_parent"] is not None: exit("Повторное присвоение родителя: %s %s %s %s" % (child, parent, L, R))
-        L["_parent"] = R
-        R["_childs"].append(L)
+        except KeyError:
+            exit("Нет родителя с таким id: %s" % parent)
+        if L._parent is not None:
+            exit("Повторное присвоение родителя: %s %s %s %s" % (child, parent, L, R))
+        L._parent = R
+        R._childs.append(L)
         # print(child, parent, L, R)
+
     for node in instances.values():
-        if node["_parent"] is None: exit("Существует узел без родителя: %s" % node)
+        if node._id != -1 and node._parent is None:
+            exit("Существует узел без родителя: %s" % node)
+
     what = content.read()
-    if what: exit("Не до конца считанный PRNT-чанк: %s" % what)
+    if what:
+        exit("Не до конца считанный PRNT-чанк: %s" % what)
     return childs, parents
 
 
@@ -347,19 +435,7 @@ def PRNT(content, instances: dict[int, dict[str]]): # parents
 SStrings = None
 classes = {}
 
-def printTree(node, lvl = "", check = False):
-    id, parent, childs, className, name = node["_id"], node["_parent"], node["_childs"], node["_class"], node["Name"][1]
-    data = {k: v for k, v in node.items() if k not in {"_id", "_parent", "_childs", "_class", "Name"}}
-    data = {k: v for k, (t, v) in data.items() if dbgType is None or t == dbgType}
-
-    checked = dbgType is None or any(printTree(child, "", True) for child in childs)
-    if check: return bool(data) or checked
-
-    if data or checked: print("%s%s %s (%s) %s" % (lvl, id, name, className, data))
-    lvl += "| "
-    for child in childs: printTree(child, lvl)
-
-def Chunk(file, instances: dict[int, dict[str]]):
+def Chunk(file, instances: dict[int, Instance]):
     global SStrings
 
     name, compressL, uncompressL, reserved = unpack("<4sII4s", file.read(16))
@@ -381,32 +457,22 @@ def Chunk(file, instances: dict[int, dict[str]]):
         SStrings = SSTR(content)
         print(SStrings)
     elif name == b"INST":
-        classID, className, objectFormat, referents, markers = INST(content)
-        print(classID, className, "service" if objectFormat else "regular", referents, markers)
-        inst = className, objectFormat, referents, markers
-        try:
-            conflict = classes[classID]
-            exit("Конфликтный classID %r: %r <-> %r" % (classID, conflict, inst))
-        except KeyError: classes[classID] = inst
-
-        for referent in referents:
-            data = {"_id": referent, "_parent": None, "_childs": [], "_class": className}
-            try:
-                conflict = instances[referent]
-                exit("Конфликтный referent %r: %r <-> %r" % (referent, conflict, data))
-            except: instances[referent] = data
+        INST(content, instances)
     elif name == b"PROP":
         PROP(content, instances)
         #exit("OK")
     elif name == b"PRNT":
         PRNT(content, instances)
     elif name == b"END":
-        if data != b'</roblox>': print("Странное окончание: %r" % data)
+        if data != b'</roblox>':
+            exit("Странное окончание: %r" % data)
         return True
-    else: exit("UNKNOWN CHUNK (%r): %r" % (name, data))
+    else:
+        exit("UNKNOWN CHUNK (%r): %r" % (name, data))
 
 def rbxmReader(name):
-    root = {"_id": -1, "_parent": "x", "_childs": [], "_class": "root", "Name": (1, "root")}
+    root = Instance(-1, -1, "$root$", True, None)
+    root.data["Name"] = 1, "root"
     instances = {-1: root}
 
     with open(name, "rb") as file:
@@ -427,17 +493,20 @@ def rbxmReader(name):
             if end:
                 break
 
+    for instance in instances.values():
+        instance.apply()
+
     return instances
 
 
 if __name__ == "__main__":
-    # insts = rbxmReader("rbxm/avatar3.rbxm")
+    insts = rbxmReader("rbxm/avatar3.rbxm")
     # insts = rbxmReader("rbxm/gui.rbxm")
     # insts = rbxmReader("rbxm/headAsset.rbxm")
     # insts = rbxmReader("rbxm/SolarSystem.rbxm")
-    insts = rbxmReader("rbxm/CageDeformerPlugin")
+    # insts = rbxmReader("rbxm/CageDeformerPlugin")
 
     print("=" * 77)
-    printTree(insts[-1])
+    insts[-1].print()
     # print(*map(hex, sorted(typesAll)))
     print("OK!")
