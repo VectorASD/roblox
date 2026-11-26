@@ -256,7 +256,7 @@ export type Button = Widget & {
     arguments: {
         Text: string?,
         Size: UDim2?,
-        -- TODO: isEnabled: boolean?,
+        IsEnabled: boolean?,
     },
 } & Clicked & RightClicked & DoubleClicked & CtrlClicked & Hovered
 

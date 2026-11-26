@@ -74,6 +74,7 @@ export type Arguments = {
     Color: Color3,
     RichText: boolean,
     Copyable: boolean,
+    IsEnabled: boolean,
 
     Increment: InputDataType,
     Min: InputDataType,
@@ -330,7 +331,7 @@ export type WidgetUtility = {
     UISizeConstraint: (Parent: GuiObject, MinSize: Vector2?, MaxSize: Vector2?) -> UISizeConstraint,
 
     applyTextStyle: (thisInstance: TextLabel | TextButton | TextBox) -> (),
-    applyInteractionHighlights: (Property: string, Button: GuiButton, Highlightee: GuiObject, Colors: { [string]: any }) -> (),
+    applyInteractionHighlights: (Property: string, Button: GuiButton, Highlightee: GuiObject, Colors: { [string]: any }, isEnabledCheck: (() -> boolean)?) -> (),
     applyInteractionHighlightsWithMultiHighlightee: (Property: string, Button: GuiButton, Highlightees: { { GuiObject | { [string]: Color3 | number } } }) -> (),
     applyFrameStyle: (thisInstance: GuiObject, noPadding: boolean?, noCorner: boolean?) -> (),
 

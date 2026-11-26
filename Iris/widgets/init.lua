@@ -160,41 +160,53 @@ return function(Iris: Types.Internal)
         thisInstance.AutoLocalize = false
     end
 
-    function widgets.applyInteractionHighlights(Property: string, Button: GuiButton, Highlightee: GuiObject, Colors: { [string]: any })
+    function widgets.applyInteractionHighlights(Property: string, Button: GuiButton, Highlightee: GuiObject, Colors: { [string]: any }, isEnabledCheck: (() -> boolean)?)
+        local function canHighlight(): boolean
+            return isEnabledCheck == nil or isEnabledCheck()
+        end
+
         local exitedButton = false
         widgets.applyMouseEnter(Button, function()
-            Highlightee[Property .. "Color3"] = Colors.HoveredColor
-            Highlightee[Property .. "Transparency"] = Colors.HoveredTransparency
+            if canHighlight() then
+                Highlightee[Property .. "Color3"] = Colors.HoveredColor
+                Highlightee[Property .. "Transparency"] = Colors.HoveredTransparency
 
-            exitedButton = false
+                exitedButton = false
+            end
         end)
 
         widgets.applyMouseLeave(Button, function()
-            Highlightee[Property .. "Color3"] = Colors.Color
-            Highlightee[Property .. "Transparency"] = Colors.Transparency
+            if canHighlight() then
+                Highlightee[Property .. "Color3"] = Colors.Color
+                Highlightee[Property .. "Transparency"] = Colors.Transparency
 
-            exitedButton = true
+                exitedButton = true
+            end
         end)
 
         widgets.applyInputBegan(Button, function(input: InputObject)
-            if not (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Gamepad1) then
-                return
+            if canHighlight() then
+                if not (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Gamepad1) then
+                    return
+                end
+                Highlightee[Property .. "Color3"] = Colors.ActiveColor
+                Highlightee[Property .. "Transparency"] = Colors.ActiveTransparency
             end
-            Highlightee[Property .. "Color3"] = Colors.ActiveColor
-            Highlightee[Property .. "Transparency"] = Colors.ActiveTransparency
         end)
 
         widgets.applyInputEnded(Button, function(input: InputObject)
-            if not (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Gamepad1) or exitedButton then
-                return
-            end
-            if input.UserInputType == Enum.UserInputType.MouseButton1 then
-                Highlightee[Property .. "Color3"] = Colors.HoveredColor
-                Highlightee[Property .. "Transparency"] = Colors.HoveredTransparency
-            end
-            if input.UserInputType == Enum.UserInputType.Gamepad1 then
-                Highlightee[Property .. "Color3"] = Colors.Color
-                Highlightee[Property .. "Transparency"] = Colors.Transparency
+            if canHighlight() then
+                if not (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Gamepad1) or exitedButton then
+                    return
+                end
+                if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                    Highlightee[Property .. "Color3"] = Colors.HoveredColor
+                    Highlightee[Property .. "Transparency"] = Colors.HoveredTransparency
+                end
+                if input.UserInputType == Enum.UserInputType.Gamepad1 then
+                    Highlightee[Property .. "Color3"] = Colors.Color
+                    Highlightee[Property .. "Transparency"] = Colors.Transparency
+                end
             end
         end)
 
@@ -352,6 +364,12 @@ return function(Iris: Types.Internal)
                     thisWidget.lastClickedTick = -1
 
                     widgets.applyButtonClick(clickedGuiObject, function()
+                        -- ПРОВЕРКА ISENABLED
+                        local args = thisWidget.arguments
+                        if args and args.IsEnabled == false then
+                            return
+                        end
+
                         thisWidget.lastClickedTick = Iris._cycleTick + 1
                     end)
                 end,
@@ -368,6 +386,12 @@ return function(Iris: Types.Internal)
                     thisWidget.lastRightClickedTick = -1
 
                     clickedGuiObject.MouseButton2Click:Connect(function()
+                        -- ПРОВЕРКА ISENABLED
+                        local args = thisWidget.arguments
+                        if args and args.IsEnabled == false then
+                            return
+                        end
+
                         thisWidget.lastRightClickedTick = Iris._cycleTick + 1
                     end)
                 end,
@@ -386,6 +410,12 @@ return function(Iris: Types.Internal)
                     thisWidget.lastDoubleClickedTick = -1
 
                     widgets.applyButtonDown(clickedGuiObject, function(x: number, y: number)
+                        -- ПРОВЕРКА ISENABLED
+                        local args = thisWidget.arguments
+                        if args and args.IsEnabled == false then
+                            return
+                        end
+
                         local currentTime = widgets.getTime()
                         local isTimeValid = currentTime - thisWidget.lastClickedTime < Iris._config.MouseDoubleClickTime
                         if isTimeValid and (Vector2.new(x, y) - thisWidget.lastClickedPosition).Magnitude < Iris._config.MouseDoubleClickMaxDist then
@@ -409,6 +439,12 @@ return function(Iris: Types.Internal)
                     thisWidget.lastCtrlClickedTick = -1
 
                     widgets.applyButtonClick(clickedGuiObject, function()
+                        -- ПРОВЕРКА ISENABLED
+                        local args = thisWidget.arguments
+                        if args and args.IsEnabled == false then
+                            return
+                        end
+
                         if widgets.UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) or widgets.UserInputService:IsKeyDown(Enum.KeyCode.RightControl) then
                             thisWidget.lastCtrlClickedTick = Iris._cycleTick + 1
                         end

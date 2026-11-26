@@ -7,6 +7,7 @@ return function(Iris: Types.Internal, widgets: Types.WidgetUtility)
         Args = {
             ["Text"] = 1,
             ["Size"] = 2,
+            ["IsEnabled"] = 3,
         },
         Events = {
             ["clicked"] = widgets.EVENTS.click(function(thisWidget: Types.Widget)
@@ -45,7 +46,10 @@ return function(Iris: Types.Internal, widgets: Types.WidgetUtility)
                 HoveredTransparency = Iris._config.ButtonHoveredTransparency,
                 ActiveColor = Iris._config.ButtonActiveColor,
                 ActiveTransparency = Iris._config.ButtonActiveTransparency,
-            })
+            }, function()
+                local args = _thisWidget.arguments
+                return not args or args.IsEnabled ~= false  -- Если nil, то true
+            end)
 
             return Button
         end,
@@ -53,6 +57,18 @@ return function(Iris: Types.Internal, widgets: Types.WidgetUtility)
             local Button = thisWidget.Instance :: TextButton
             Button.Text = thisWidget.arguments.Text or "Button"
             Button.Size = thisWidget.arguments.Size or UDim2.fromOffset(0, 0)
+
+            if thisWidget.arguments.IsEnabled ~= false then
+                -- Возвращаем стандартные цвета
+                Button.TextColor3 = Iris._config.TextColor
+                Button.BackgroundColor3 = Iris._config.ButtonColor
+                Button.BackgroundTransparency = Iris._config.ButtonTransparency
+            else
+                -- Делаем кнопку визуально неактивной (серый текст, темный фон)
+                Button.TextColor3 = Color3.fromRGB(120, 120, 120)
+                Button.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+                Button.BackgroundTransparency = 0.5
+            end
         end,
         Discard = function(thisWidget: Types.Button)
             thisWidget.Instance:Destroy()
