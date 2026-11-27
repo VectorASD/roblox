@@ -514,6 +514,8 @@ export type Table = ParentWidget & {
         FixedWidth: boolean,
         ProportionalWidth: boolean,
         LimitTableWidth: boolean,
+        WidthNormalizer: (widths: { number }, numColumns: number, absWidth: number, cellPadding: number, table: Table) -> { number }?,
+        CanResizeColumn: (index: number, numColumns: number, table: Table) -> boolean?,
     },
 
     state: {

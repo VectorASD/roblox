@@ -723,24 +723,24 @@ return function(Iris: Types.Iris)
     ]=]
     Iris.ImageButton = wrapper("ImageButton")
 
-	--[=[
-	    @within Image
-	    @prop AssetTile Iris.AssetTile
-	    @tag Widget
+    --[=[
+        @within Image
+        @prop AssetTile Iris.AssetTile
+        @tag Widget
 
-	    A specialized ImageButton for displaying asset thumbnails by their numeric asset ID.
-	    Pass the asset ID (e.g. 77199330880416) as the Image argument — the widget converts it
-	    to an rbxthumb://type=Asset URL automatically, so you don't need to know the thumbnail
-	    endpoint or request specific sizes.
+        A specialized ImageButton for displaying asset thumbnails by their numeric asset ID.
+        Pass the asset ID (e.g. 77199330880416) as the Image argument — the widget converts it
+        to an rbxthumb://type=Asset URL automatically, so you don't need to know the thumbnail
+        endpoint or request specific sizes.
 
-	    Useful for building catalogue-style grids: place multiple AssetTile widgets inside an
-	    Iris.Table or Iris.SameLine, and each becomes a clickable square thumbnail.
-	    All standard button events are supported, plus hovered for future overlay actions.
+        Useful for building catalogue-style grids: place multiple AssetTile widgets inside an
+        Iris.Table or Iris.SameLine, and each becomes a clickable square thumbnail.
+        All standard button events are supported, plus hovered for future overlay actions.
 
-	    Size defaults to a 100×100 square if omitted. Rect, ScaleType, TileSize, SliceCenter,
-	    SliceScale and ResampleMode are inherited from the abstract image type for API
-	    compatibility, but are typically unused for thumbnails (thumbnail is always Fit-scaled
-	    inside the square).
+        Size defaults to a 100×100 square if omitted. Rect, ScaleType, TileSize, SliceCenter,
+        SliceScale and ResampleMode are inherited from the abstract image type for API
+        compatibility, but are typically unused for thumbnails (thumbnail is always Fit-scaled
+        inside the square).
 
         ```lua
         hasChildren = false
@@ -764,22 +764,22 @@ return function(Iris: Types.Iris)
         }
         ```
 
-	    Usage example:
+        Usage example:
         ```lua
-	        Iris.Table({ 5 })
-	        for _, accessoryId in ipairs(myAccessoryIds) do
-	            local tile = Iris.AssetTile({
-	                [Iris.Args.Image.Image] = accessoryId,
-	                [Iris.Args.Image.Size] = UDim2.fromOffset(80, 80),
-	            })
-	            if tile.clicked() then
-	                print("clicked", accessoryId)
-	            end
-	        end
-	        Iris.End()
+            Iris.Table({ 5 })
+            for _, accessoryId in ipairs(myAccessoryIds) do
+                local tile = Iris.AssetTile({
+                    [Iris.Args.Image.Image] = accessoryId,
+                    [Iris.Args.Image.Size] = UDim2.fromOffset(80, 80),
+                })
+                if tile.clicked() then
+                    print("clicked", accessoryId)
+                end
+            end
+            Iris.End()
         ```
-	]=]
-	Iris.AssetTile = wrapper("AssetTile")
+    ]=]
+    Iris.AssetTile = wrapper("AssetTile")
 
     --[[
         ---------------------------------
@@ -2010,6 +2010,8 @@ return function(Iris: Types.Iris)
             FixedWidth: boolean? = false, -- columns takes up a fixed pixel width, rather than a proportion of the total available
             ProportionalWidth: boolean? = false, -- minimises the width of each column individually
             LimitTableWidth: boolean? = false, -- when a fixed width, cut of any unused space
+            WidthNormalizer: (widths: { number }, numColumns: number, absWidth: number, cellPadding: number, table: Table) -> { number }?,
+            CanResizeColumn: (index: number, numColumns: number, table: Table) -> boolean?,
         }
         Events = {
             hovered: () -> boolean

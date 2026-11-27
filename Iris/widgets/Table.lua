@@ -29,6 +29,95 @@ local Types = require(script.Parent.Parent.Types)
     Iris.SetColumnWidth(index: number, width: number | UDim)
 ]]
 
+
+-- Нормализует веса колонок так, чтобы сумма была равна 1.
+-- - fallback на равные доли, если total <= 0
+-- - возвращает НОВУЮ таблицу, т.е. не мутирует входную
+local function NormalizeWidths(widths: { number }, numColumns: number): { number }
+    local total = 0
+    for index = 1, numColumns do
+        total += (widths[index] or 0)
+    end
+
+    local normalized = table.create(numColumns)
+    if total <= 0 then
+        local equal = 1 / numColumns
+        for index = 1, numColumns do
+            normalized[index] = equal
+        end
+    else
+        for index = 1, numColumns do
+            normalized[index] = (widths[index] or 0) / total
+        end
+    end
+    return normalized
+end
+
+-- Сравнивает двух массивов весов с точностью до 1e-6.
+-- Нужно, чтобы не дёргать state:set() лишний раз — custom normalizer
+-- может возвращать новый массив на каждый вызов.
+local function SameWidths(a: { number | UDim }, b: { number | UDim }): boolean
+    if #a ~= #b then return false end
+    for i = 1, #a do
+        local av, bv = a[i], b[i]
+        if typeof(av) ~= typeof(bv) then
+            return false
+        end
+        if typeof(av) == "UDim" then
+            if math.abs(av.Scale - bv.Scale) > 1e-6
+                or math.abs(av.Offset - bv.Offset) > 1e-6 then
+                return false
+            end
+        else
+            if math.abs((av or 0) - (bv or 0)) > 1e-6 then
+                return false
+            end
+        end
+    end
+    return true
+end
+
+-- Возвращает нормализованные веса: либо через пользовательский хук,
+-- либо через дефолтную логику с epsilon.
+-- absWidth — ширина таблицы в пикселях; нужна кастомному нормалайзеру
+-- для расчёта fixed-pixel колонок.
+local function ComputeNormalizedWidths(thisWidget: Types.Table, widths: { number }, absWidth: number, cellPadding: number): { number }
+    local numCols = thisWidget.arguments.NumColumns
+    local Normalizer = thisWidget.arguments.WidthNormalizer
+    if Normalizer then
+        local result = Normalizer(widths, numCols, absWidth, cellPadding, thisWidget)
+        return result or widths
+    end
+    local total = 0
+    for i = 1, numCols do
+        total += (widths[i] or 0)
+    end
+    if math.abs(total - 1) > 1e-4 then
+        return NormalizeWidths(widths, numCols)
+    end
+    return widths
+end
+
+-- Можно ли ресайзить границу с ключом `key` (0..NumColumns).
+-- Граница `i` ресайзит колонку `i` (и `i+1`, если `i < NumColumns`).
+-- Для `key == 0` (правый край при LimitTableWidth) — только последняя колонка.
+local function IsBorderResizable(thisWidget: Types.Table, key: number): boolean
+    local CanResizeColumn = thisWidget.arguments.CanResizeColumn
+    if not CanResizeColumn then return true end
+
+    local numCols = thisWidget.arguments.NumColumns
+    local realIndex = if key == 0 then numCols else key
+
+    if realIndex >= numCols then
+        -- правый край: только последняя колонка
+        return CanResizeColumn(numCols, numCols, thisWidget)
+    end
+    -- обычная граница: обе соседние колонки должны быть разрешены
+    return CanResizeColumn(realIndex, numCols, thisWidget)
+        and CanResizeColumn(realIndex + 1, numCols, thisWidget)
+end
+
+
 return function(Iris: Types.Internal, widgets: Types.WidgetUtility)
     local Tables: { [Types.ID]: Types.Table } = {}
     local TableMinWidths: { [Types.Table]: { boolean } } = {}
@@ -153,38 +242,18 @@ return function(Iris: Types.Internal, widgets: Types.WidgetUtility)
         widths:set(widths.value, true)
     end
 
-    -- Нормализует веса колонок так, чтобы сумма была равна 1.
-    -- - fallback на равные доли, если total <= 0
-    -- - возвращает НОВУЮ таблицу, т.е. не мутирует входную
-    local function NormalizeWidths(widths: { number }, numColumns: number): { number }
-        local total = 0
-        for index = 1, numColumns do
-            total += (widths[index] or 0)
-        end
-
-        local normalized = table.create(numColumns)
-        if total <= 0 then
-            local equal = 1 / numColumns
-            for index = 1, numColumns do
-                normalized[index] = equal
-            end
-        else
-            for index = 1, numColumns do
-                normalized[index] = (widths[index] or 0) / total
-            end
-        end
-        return normalized
-    end
-
     local function ColumnMouseDown(thisWidget: Types.Table, index: number)
-        local widths = thisWidget.state.widths
-        local numCols = thisWidget.arguments.NumColumns
-        local total = 0
-        for i = 1, numCols do
-            total += (widths.value[i] or 0)
+        -- 1. Хук блокировки ресайза
+        if not IsBorderResizable(thisWidget, index) then
+            return
         end
-        if math.abs(total - 1) > 1e-4 then
-            widths:set(NormalizeWidths(widths.value, numCols))
+
+        -- 2. Pre-drag нормализация через тот же путь, что и UpdateState
+        local widths = thisWidget.state.widths
+        local absWidth = (thisWidget.Instance :: Frame).AbsoluteSize.X
+        local normalized = ComputeNormalizedWidths(thisWidget, widths.value, absWidth, Iris._config.CellPadding)
+        if not SameWidths(widths.value, normalized) then
+            widths:set(normalized)
         end
 
         AnyActiveTable = true
@@ -207,12 +276,17 @@ return function(Iris: Types.Internal, widgets: Types.WidgetUtility)
             return
         end
         if inputObject.UserInputType == Enum.UserInputType.MouseButton1 and AnyActiveTable then
+            local dragged = ActiveTable
             AnyActiveTable = false
             ActiveTable = nil
             ActiveColumn = 0
             ActiveLeftWidth = -1
             ActiveRightWidth = -1
             MousePositionX = 0
+
+            if dragged and dragged.Instance and dragged.Instance.Parent then
+                Iris._widgets["Table"].UpdateState(dragged)
+            end
         end
     end)
 
@@ -282,7 +356,7 @@ return function(Iris: Types.Internal, widgets: Types.WidgetUtility)
         Hover.BackgroundTransparency = Iris._config[`TableBorder{style}Transparency`]
         Hover.BorderSizePixel = 0
 
-        Hover.Visible = thisWidget.arguments.Resizable
+        Hover.Visible = thisWidget.arguments.Resizable and IsBorderResizable(thisWidget, index)
 
         Hover.Parent = Border
 
@@ -378,6 +452,8 @@ return function(Iris: Types.Internal, widgets: Types.WidgetUtility)
             FixedWidth = 7,
             ProportionalWidth = 8,
             LimitTableWidth = 9,
+            WidthNormalizer = 10,  -- (widths, numColumns, absWidth, cellPadding, table) -> {number}?
+            CanResizeColumn = 11,  -- (index, numColumns, table) -> boolean
         },
         Events = {},
         Generate = function(thisWidget: Types.Table)
@@ -471,6 +547,18 @@ return function(Iris: Types.Internal, widgets: Types.WidgetUtility)
             local TableColumnBorder = GenerateColumnBorder(thisWidget, NumColumns, "Strong")
             thisWidget._columnBorders[0] = TableColumnBorder
             TableColumnBorder.Parent = Table
+
+            thisWidget._lastAbsWidth = 0
+            if thisWidget.arguments.WidthNormalizer then
+                Table:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+                    local newWidth = Table.AbsoluteSize.X
+                    -- epsilon: игнорируем суб-пиксельный джиттер от округлений
+                    if newWidth > 0 and math.abs(newWidth - thisWidget._lastAbsWidth) > 0.5 then
+                        thisWidget._lastAbsWidth = newWidth
+                        Iris._widgets["Table"].UpdateState(thisWidget)
+                    end
+                end)
+            end
         end,
         Update = function(thisWidget: Types.Table)
             local NumColumns = thisWidget.arguments.NumColumns
@@ -498,7 +586,7 @@ return function(Iris: Types.Internal, widgets: Types.WidgetUtility)
                     row.BackgroundTransparency = 1
                 end
             end
-            
+
             for _, Border: Frame in thisWidget._rowBorders do
                 Border.Visible = thisWidget.arguments.InnerBorders
             end
@@ -507,10 +595,10 @@ return function(Iris: Types.Internal, widgets: Types.WidgetUtility)
                 Border.Visible = thisWidget.arguments.InnerBorders or thisWidget.arguments.Resizable
             end
 
-            for _, border in thisWidget._columnBorders do
+            for index, border in thisWidget._columnBorders do
                 local hover = border:FindFirstChild("Hover") :: Frame?
                 if hover then
-                    hover.Visible = thisWidget.arguments.Resizable
+                    hover.Visible = thisWidget.arguments.Resizable and IsBorderResizable(thisWidget, index)
                 end
             end
 
@@ -520,7 +608,7 @@ return function(Iris: Types.Internal, widgets: Types.WidgetUtility)
                 thisWidget._columnBorders[0].Visible =
                     thisWidget.arguments.LimitTableWidth and (thisWidget.arguments.Resizable or thisWidget.arguments.OuterBorders)
             end
-            
+
             -- the header border visibility must be updated after settings all borders
             -- visiblity or not
             local HeaderRow: Frame? = thisWidget._rowInstances[0]
@@ -551,7 +639,7 @@ return function(Iris: Types.Internal, widgets: Types.WidgetUtility)
             local NumColumns = thisWidget.arguments.NumColumns
             local ColumnWidths = thisWidget.state.widths.value
             local MinWidths = thisWidget._minWidths
-            
+
             local Fixed = thisWidget.arguments.FixedWidth
             local Proportional = thisWidget.arguments.ProportionalWidth
 
@@ -587,31 +675,32 @@ return function(Iris: Types.Internal, widgets: Types.WidgetUtility)
                         end
                     end
                 end
-            elseif not Fixed and ActiveTable ~= thisWidget then
+            elseif ActiveTable ~= thisWidget then
                 -- Нормализуем только когда таблица НЕ перетаскивается прямо сейчас.
                 -- Resizable + пропорциональный режим:
                 -- нормализуем пользовательские веса, чтобы сумма была 1.
                 -- Локальная копия: state не мутируем, чтобы не сломать
                 -- внешнее чтение/сравнение и не вызвать ложных пересчётов.
-                local total = 0
-                for index = 1, NumColumns do
-                    total += (ColumnWidths[index] or 0)
-                end
-                -- epsilon: не дёргаем пересчёт, если уже ~1 (дрейф от клампов после драга)
-                if math.abs(total - 1) > 1e-4 then
-                    ColumnWidths = NormalizeWidths(ColumnWidths, NumColumns)
-                end
+                local absWidth = (thisWidget.Instance :: Frame).AbsoluteSize.X
+                ColumnWidths = ComputeNormalizedWidths(thisWidget, ColumnWidths, absWidth, Iris._config.CellPadding)
             end
             -- Resizable + Fixed → ColumnWidths как есть (пиксели, не нормализуем)
 
             local Position = UDim.new()
             for index = 1, NumColumns do
                 local ColumnWidth = ColumnWidths[index]
+                local Width: UDim
 
-                local Width = UDim.new(
-                    if Fixed then 0 else math.clamp(ColumnWidth, 0, 1),
-                    if Fixed then math.max(ColumnWidth, 0) else 0
-                )
+                if typeof(ColumnWidth) == "UDim" then
+                    -- WidthNormalizer вернул точный UDim — используем как есть
+                    Width = ColumnWidth
+                else
+                    -- старое поведение: number + глобальный Fixed flag
+                    Width = UDim.new(
+                        if Fixed then 0 else math.clamp(ColumnWidth, 0, 1),
+                        if Fixed then math.max(ColumnWidth, 0) else 0
+                    )
+                end
                 thisWidget._widths[index] = Width
                 Position += Width
 
@@ -666,7 +755,7 @@ return function(Iris: Types.Internal, widgets: Types.WidgetUtility)
 
             if Cell ~= nil then
                 local columnIndex = tonumber(Cell.Name:sub(6))
-                
+
                 if columnIndex then
                     TableMinWidths[thisWidget][columnIndex] = true
                 end
